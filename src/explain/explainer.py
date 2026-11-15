@@ -4,7 +4,7 @@ Subgraph Forensics, Exact TreeSHAP Feature Attribution, & GNN Edge Attention Exp
 Provides:
 1. Exact TreeSHAP feature attributions via LightGBM `pred_contrib=True`
 2. 2-Hop Directed Ego-Subgraph extraction with learned GAT edge attention weights
-3. Automated FinCEN Suspicious Activity Report (SAR) compliance narrative generation
+3. A summary for each synthetic investigation case
 """
 
 from __future__ import annotations
@@ -173,7 +173,7 @@ def explain_transaction_node(
     - TreeSHAP log-odds contributions from the hybrid LightGBM component
     - GNN vs. Tabular risk uplift analysis
     - Subgraph neighbor contagion summary
-    - Automated FinCEN SAR (Suspicious Activity Report) narrative
+    - Sample investigator summary
     """
     node_idx = resolve_node_idx(artifacts, identifier)
     df = artifacts.nodes_df
@@ -228,7 +228,7 @@ def explain_transaction_node(
     prob_tabular = float(row["prob_tabular"])
     gnn_uplift = round(prob_hybrid - prob_tabular, 4)
 
-    # Build automated FinCEN / AML Compliance Investigator Narrative
+    # Summarize the benchmark record and model scores.
     tx_id = str(row["tx_id"])
     wallet_id = str(row.get("wallet_id", f"bc1q{node_idx:08d}"))
     risk_tier = str(row["risk_tier"])
@@ -239,21 +239,17 @@ def explain_transaction_node(
         f"{d['display_name']} ({d['value']}, SHAP +{d['shap_log_odds']:.2f})"
         for d in top_positive_drivers[:3]
     ]
-    drivers_str = ", ".join(driver_phrases) if driver_phrases else "elevated multi-hop structural anomalies"
+    drivers_str = ", ".join(driver_phrases) if driver_phrases else "no positive feature contributions in the displayed attributions"
 
-    camo_clause = (
-        f" Notably, this wallet exhibits **camouflaged local behavior** (Tabular-only risk score: {prob_tabular:.1%}), "
-        f"but **Directed GraphSAGE + GAT message passing** detected severe 2-hop syndicate contagion, elevating the final hybrid risk score to **{prob_hybrid:.1%} (+{gnn_uplift:.1%} uplift)**."
-        if is_camo or gnn_uplift > 0.15
-        else f" Both local velocity indicators ({prob_tabular:.1%}) and graph message passing ({prob_gnn:.1%}) corroborate a **{prob_hybrid:.1%}** composite laundering probability."
-    )
-
+    camo_clause = " The generator marked this case as locally camouflaged." if is_camo else ""
     sar_narrative = (
-        f"**[SYNTHETIC CASE SUMMARY — {risk_tier} PRIORITY]** Transaction `{tx_id}` (Wallet `{wallet_id}`, "
-        f"Timestep {int(row['timestep'])}) was scored at **{prob_hybrid:.1%} illicit probability** "
-        f"(Predicted Pattern: `{typology}`). Primary forensic triggers include {drivers_str}. "
-        f"Within its 2-hop ego-network ({subgraph['num_subgraph_nodes']} nodes, {subgraph['num_subgraph_edges']} directed edges), "
-        f"the node connects to **{subgraph['high_risk_neighbors_count']} high-risk counterparties**."
+        f"**[SYNTHETIC CASE SUMMARY — {risk_tier} PRIORITY]** Transaction {tx_id}, window {int(row['timestep'])}. "
+        f"The tabular model scored it **{prob_tabular:.1%}**, the GNN **{prob_gnn:.1%}**, "
+        f"and the hybrid **{prob_hybrid:.1%}**. "
+        f"**Generator scenario:** {typology.replace('_', ' ')}. "
+        f"**Positive LightGBM contributions:** {drivers_str}. "
+        f"The two-hop neighborhood has {subgraph['num_subgraph_nodes']} nodes "
+        f"and {subgraph['num_subgraph_edges']} directed edges."
         f"{camo_clause}"
     )
 
