@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CryptoGuard GNN — AML & Graph Forensics Command Center</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: #070b14;
+      color: #e2e8f0;
+    }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    .glass {
+      background: rgba(15, 23, 42, 0.82);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(51, 65, 85, 0.65);
+    }
+    .glass-hover:hover {
+      border-color: rgba(56, 189, 248, 0.55);
+      background: rgba(30, 41, 59, 0.78);
+    }
+    .tab-active {
+      background: linear-gradient(135deg, rgba(14, 165, 233, 0.22), rgba(99, 102, 241, 0.22));
+      border-color: #38bdf8;
+      color: #38bdf8;
+    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col selection:bg-sky-500 selection:text-white">
+
+  <!-- Top Navigation & System Status Header -->
+  <header class="sticky top-0 z-30 glass border-b border-slate-800 px-6 py-3.5">
+    <div class="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3.5">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-500 via-indigo-500 to-emerald-500 flex items-center justify-center shadow-lg shadow-sky-500/20">
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2.5">
+            <h1 class="text-lg font-bold tracking-tight text-white">CryptoGuard <span class="text-sky-400">GNN</span></h1>
+            <span class="text-[11px] mono uppercase px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold">
+              Hybrid GraphSAGE + GAT + LightGBM
+            </span>
+          </div>
+          <p class="text-xs text-slate-400">Anti-Money Laundering (AML) Subgraph Forensics &amp; Explainable AI Command Center</p>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="flex items-center gap-2">
+        <button onclick="switchTab('forensics')" id="tab-btn-forensics" class="tab-active px-3.5 py-2 rounded-lg text-xs font-semibold border border-slate-700 transition">
+          1. Subgraph Forensics &amp; XAI
+        </button>
+        <button onclick="switchTab('benchmarks')" id="tab-btn-benchmarks" class="px-3.5 py-2 rounded-lg text-xs font-semibold border border-slate-800 text-slate-300 hover:text-white transition">
+          2. 4-Model Architecture Benchmark
+        </button>
+        <button onclick="switchTab('drift')" id="tab-btn-drift" class="px-3.5 py-2 rounded-lg text-xs font-semibold border border-slate-800 text-slate-300 hover:text-white transition">
+          3. Temporal Drift (Timestep 43 Shift)
+        </button>
+        <button onclick="switchTab('simulator')" id="tab-btn-simulator" class="px-3.5 py-2 rounded-lg text-xs font-semibold border border-slate-800 text-slate-300 hover:text-white transition">
+          4. What-if simulator
+        </button>
+      </nav>
+
+      <!-- Live Telemetry Pill & Swagger Docs Link -->
+      <div class="flex items-center gap-3">
+        <div id="header-stats-pill" class="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/90 border border-slate-800 text-xs mono text-slate-300">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span id="header-nodes-edges">Loading graph...</span>
+        </div>
+        <a href="https://github.com/Metwally99/cryptoguard-gnn#methodology" target="_blank" rel="noopener" class="px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-xs font-semibold text-emerald-300 border border-emerald-500/40 transition">
+          Methodology ↗
+        </a>
+        <a id="api-docs-link" href="/docs" target="_blank" rel="noopener" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-sky-400 border border-slate-700 transition">
+          OpenAPI /docs ↗
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Workspace Container -->
+  <main class="flex-1 max-w-[1600px] w-full mx-auto px-6 py-5 space-y-5">
+
+    <p id="demo-context" class="text-sm text-slate-300">Synthetic transaction data. Scores illustrate model behavior for research and demonstration.</p>
+    <p id="dashboard-error" role="status" class="text-sm text-rose-300"></p>
+
+    <!-- Top KPI Strip -->
+    <section class="grid grid-cols-2 md:grid-cols-5 gap-3.5">
+      <div class="glass rounded-xl p-3.5">
+        <div class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Hybrid average precision</div>
+        <div class="mt-1 flex items-baseline gap-2">
+          <span id="kpi-hybrid-prauc" class="text-2xl font-bold text-emerald-400 mono">--</span>
+          <span id="kpi-prauc-delta" class="text-xs text-emerald-400/90 mono font-medium">-- vs Tabular</span>
+        </div>
+        <div class="text-[11px] text-slate-500 mt-0.5">Out-of-time Test Split (Steps 35–49)</div>
+      </div>
+
+      <div class="glass rounded-xl p-3.5">
+        <div class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Camouflaged Mule Recall</div>
+        <div class="mt-1 flex items-baseline gap-2">
+          <span id="kpi-camo-recall" class="text-2xl font-bold text-sky-400 mono">--</span>
+          <span id="kpi-camo-tab" class="text-xs text-rose-400 mono">Tabular: --</span>
+        </div>
+        <div class="text-[11px] text-slate-500 mt-0.5">Locally disguised laundering wallets caught</div>
+      </div>
+
+      <div class="glass rounded-xl p-3.5">
+        <div class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Hybrid F1 / Precision</div>
+        <div class="mt-1 flex items-baseline gap-2">
+          <span id="kpi-f1" class="text-2xl font-bold text-indigo-400 mono">--</span>
+          <span id="kpi-precision" class="text-xs text-slate-300 mono">Prec: --</span>
+        </div>
+        <div class="text-[11px] text-slate-500 mt-0.5">Validation-selected threshold</div>
+      </div>
+
+      <div class="glass rounded-xl p-3.5">
+        <div class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Flagged test transactions</div>
+        <div class="mt-1 flex items-baseline gap-2">
+          <span id="kpi-savings" class="text-2xl font-bold text-amber-400 mono">--</span>
+          <span id="kpi-savings-gain" class="text-xs text-emerald-400 mono">--</span>
+        </div>
+        <div class="text-[11px] text-slate-500 mt-0.5">True and false positives at the validation-selected threshold</div>
+      </div>
+
+      <div class="glass rounded-xl p-3.5">
+        <div class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Graph Scale &amp; Split</div>
+        <div class="mt-1 flex items-baseline gap-2">
+          <span id="kpi-graph-scale" class="text-xl font-bold text-white mono">--</span>
+        </div>
+        <div class="text-[11px] text-slate-500 mt-0.5">Train 1–30 · Validate 31–34 · Test 35–49</div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- TAB 1: SUBGRAPH FORENSICS & EXPLAINABLE AI (XAI) INVESTIGATOR         -->
+    <!-- ===================================================================== -->
+    <section id="tab-forensics" class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+      <!-- Left Column (4 cols): Priority Alert Queue & Filters -->
+      <div class="lg:col-span-4 glass rounded-xl p-4 flex flex-col h-[760px]">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <h2 class="text-sm font-bold text-white flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+              AML Priority Alert Queue (Test Steps 35–49)
+            </h2>
+            <p class="text-[11px] text-slate-400">Select a transaction to inspect its two-hop neighborhood</p>
+          </div>
+          <span id="alert-count-badge" class="text-xs mono px-2 py-0.5 rounded bg-slate-800 text-sky-400">0 alerts</span>
+        </div>
+
+        <!-- Filter Controls -->
+        <div class="grid grid-cols-2 gap-2 mb-3">
+          <div>
+            <label class="text-[10px] uppercase text-slate-400 font-semibold">Laundering Typology</label>
+            <select id="filter-typology" onchange="loadAlerts()" class="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-sky-500">
+              <option value="ALL">All Typologies</option>
+              <option value="Smurfing_FanOut_FanIn">Smurfing (Fan-Out / Fan-In)</option>
+              <option value="Peel_Chain_Layering">Peel Chain Layering</option>
+              <option value="Circular_Wash_Ring">Circular Wash Ring</option>
+              <option value="CoinJoin_Mixer_Cluster">CoinJoin Mixer Cluster</option>
+            </select>
+          </div>
+          <div class="flex flex-col justify-end">
+            <label class="flex items-center gap-2 cursor-pointer bg-slate-900/90 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 hover:border-sky-500">
+              <input type="checkbox" id="filter-camouflaged" onchange="loadAlerts()" class="rounded text-sky-500 focus:ring-0" />
+              <span>Camouflaged Mules Only</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Scrollable Alert List -->
+        <div id="alert-list-container" class="flex-1 overflow-y-auto space-y-2 pr-1">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+      <!-- Right Column (8 cols): Interactive 2-Hop Network Canvas + SAR Narrative + TreeSHAP -->
+      <div class="lg:col-span-8 flex flex-col gap-4">
+
+        <!-- Top Sub-Panel: Interactive 2-Hop Ego-Subgraph & Model Uplift Strip -->
+        <div class="glass rounded-xl p-4">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <div>
+              <div class="flex items-center gap-2">
+                <h2 class="text-sm font-bold text-white">2-Hop Directed Ego-Subgraph &amp; GNN Edge Attention</h2>
+                <span id="dossier-tx-badge" class="text-xs mono px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">--</span>
+                <span id="dossier-typo-badge" class="text-xs mono px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">--</span>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-0.5">
+                Edge thickness reflects learned <span class="text-sky-400 font-medium">GAT Attention Weights</span>. Drag nodes to rearrange; click any neighbor node to pivot investigation.
+              </p>
+            </div>
+
+            <!-- Legend -->
+            <div class="flex items-center gap-3 text-[11px]">
+              <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-amber-400 inline-block ring-2 ring-amber-400/40"></span> Target Node</span>
+              <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span> Illicit Syndicate</span>
+              <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span> Licit Peer</span>
+              <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-slate-400 inline-block"></span> Unknown Dark Wallet</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+            <!-- Interactive HTML5 Directed Network Canvas -->
+            <div class="md:col-span-8 relative bg-slate-950/90 rounded-xl border border-slate-800 overflow-hidden h-[340px]">
+              <canvas id="subgraph-canvas" width="680" height="340" class="w-full h-full cursor-grab active:cursor-grabbing"></canvas>
+              <div id="canvas-tooltip" class="hidden absolute pointer-events-none glass px-2.5 py-1.5 rounded-lg text-[11px] mono text-slate-200 shadow-xl"></div>
+            </div>
+
+            <!-- 4-Model Score Comparison for Selected Transaction -->
+            <div class="md:col-span-4 space-y-2.5">
+              <div class="p-3 rounded-xl bg-slate-900/90 border border-slate-800">
+                <div class="text-[11px] uppercase text-slate-400 font-semibold">Model Probability Comparison</div>
+                <div class="mt-2.5 space-y-2">
+                  <div>
+                    <div class="flex justify-between text-xs mb-1">
+                      <span class="text-slate-400">1. Tabular Baseline (Local Only)</span>
+                      <span id="score-tabular" class="mono font-semibold text-slate-300">--</span>
+                    </div>
+                    <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                      <div id="bar-tabular" class="h-full bg-slate-400 transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div class="flex justify-between text-xs mb-1">
+                      <span class="text-slate-300">2. Topology LightGBM (1-Hop)</span>
+                      <span id="score-topo" class="mono font-semibold text-sky-300">--</span>
+                    </div>
+                    <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                      <div id="bar-topo" class="h-full bg-sky-400 transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div class="flex justify-between text-xs mb-1">
+                      <span class="text-slate-300">3. Deep GraphSAGE + GAT</span>
+                      <span id="score-gnn" class="mono font-semibold text-indigo-300">--</span>
+                    </div>
+                    <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                      <div id="bar-gnn" class="h-full bg-indigo-400 transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                  </div>
+
+                  <div class="pt-1 border-t border-slate-800">
+                    <div class="flex justify-between text-xs mb-1">
+                      <span class="text-emerald-400 font-bold">4. Hybrid GNN + LightGBM</span>
+                      <span id="score-hybrid" class="mono font-bold text-emerald-400">--</span>
+                    </div>
+                    <div class="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden">
+                      <div id="bar-hybrid" class="h-full bg-gradient-to-r from-sky-500 to-emerald-400 transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- GNN Uplift Callout -->
+              <div class="p-3 rounded-xl bg-gradient-to-br from-sky-500/10 to-indigo-500/10 border border-sky-500/30">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-semibold text-sky-300">GNN Structural Uplift (ΔP)</span>
+                  <span id="score-uplift" class="text-sm font-bold mono text-emerald-400">--</span>
+                </div>
+                <p id="subgraph-summary-stats" class="text-[11px] text-slate-300 mt-1">
+                  Select an alert to view 2-hop contagion metrics.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Sub-Panel: FinCEN SAR Narrative + Exact TreeSHAP Feature Attribution Chart -->
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+          <!-- Automated FinCEN SAR Narrative -->
+          <div class="md:col-span-5 glass rounded-xl p-4 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <h3 class="text-xs font-bold uppercase tracking-wider text-amber-400">
+                  Sample investigator notes
+                </h3>
+                <button onclick="copySarNarrative()" id="copy-sar-btn" class="text-[11px] px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">
+                  Copy Report
+                </button>
+              </div>
+              <div id="sar-narrative-box" class="text-xs leading-relaxed text-slate-200 bg-slate-950/80 p-3.5 rounded-lg border border-slate-800/90">
+                Loading compliance narrative...
+              </div>
+            </div>
+
+            <div class="mt-3 pt-3 border-t border-slate-800/80 grid grid-cols-3 gap-2 text-center">
+              <div class="bg-slate-900/70 rounded-lg p-2">
+                <div class="text-[10px] text-slate-400 uppercase">Wallet Address</div>
+                <div id="meta-wallet" class="text-xs mono text-slate-200 truncate mt-0.5">--</div>
+              </div>
+              <div class="bg-slate-900/70 rounded-lg p-2">
+                <div class="text-[10px] text-slate-400 uppercase">Timestep Window</div>
+                <div id="meta-timestep" class="text-xs mono text-sky-400 font-semibold mt-0.5">--</div>
+              </div>
+              <div class="bg-slate-900/70 rounded-lg p-2">
+                <div class="text-[10px] text-slate-400 uppercase">Ground Truth</div>
+                <div id="meta-truth" class="text-xs mono font-semibold mt-0.5">--</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Exact TreeSHAP Feature Attribution Plot -->
+          <div class="md:col-span-7 glass rounded-xl p-4">
+            <div class="flex items-center justify-between mb-1">
+              <h3 class="text-xs font-bold uppercase tracking-wider text-sky-400">
+                Exact TreeSHAP Feature &amp; GNN Embedding Attributions (Log-Odds)
+              </h3>
+              <span class="text-[11px] text-slate-400">Red = Pushes toward Illicit | Blue = Pushes toward Licit</span>
+            </div>
+            <div id="shap-chart" class="w-full h-[270px]"></div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- TAB 2: 4-MODEL ARCHITECTURE BENCHMARK & TYPOLOGY ANALYSIS             -->
+    <!-- ===================================================================== -->
+    <section id="tab-benchmarks" class="hidden space-y-5">
+      <div class="glass rounded-xl p-5">
+        <h2 class="text-base font-bold text-white mb-1">
+          Out-of-Time Test Split Benchmark (Timesteps 35–49) — Why Graph Topology Beats Isolated Tabular Rows
+        </h2>
+        <p class="text-xs text-slate-400 mb-4">
+          All models trained strictly on Timesteps 1–30, validated on 31–34, and evaluated on unseen future Timesteps 35–49.
+        </p>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="border-b border-slate-800 text-slate-400 uppercase text-[11px]">
+                <th class="py-2.5 px-3">Architecture</th>
+                <th class="py-2.5 px-3">Feature Representation</th>
+                <th class="py-2.5 px-3">Average precision</th>
+                <th class="py-2.5 px-3">ROC-AUC</th>
+                <th class="py-2.5 px-3">F1-Score</th>
+                <th class="py-2.5 px-3">Precision</th>
+                <th class="py-2.5 px-3">Recall</th>
+                <th class="py-2.5 px-3">Camouflaged Mule Recall</th>
+                <th class="py-2.5 px-3">False positives</th>
+              </tr>
+            </thead>
+            <tbody id="benchmark-table-body" class="divide-y divide-slate-800/70 mono">
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div class="glass rounded-xl p-4">
+          <h3 class="text-sm font-bold text-white mb-1">Recall by Money Laundering Typology</h3>
+          <p class="text-xs text-slate-400 mb-2">Comparison across Smurfing, Peel Chains, Circular Wash Rings, and CoinJoin Mixers</p>
+          <div id="typology-chart" class="w-full h-[340px]"></div>
+        </div>
+
+        <div class="glass rounded-xl p-4">
+          <h3 class="text-sm font-bold text-white mb-1">Top 14 Global Feature Importances (Topological vs. Local)</h3>
+          <p class="text-xs text-slate-400 mb-2">Normalized split gain importance across engineered graph topology &amp; local transaction features</p>
+          <div id="importance-chart" class="w-full h-[340px]"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- TAB 3: TEMPORAL CONCEPT DRIFT MONITOR (TIMESTEP 43 SHUTDOWN)          -->
+    <!-- ===================================================================== -->
+    <section id="tab-drift" class="hidden space-y-5">
+      <div class="glass rounded-xl p-5">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-3">
+          <div>
+            <h2 class="text-base font-bold text-white">
+              Temporal Concept Drift &amp; Regime Shift Monitor (Timesteps 1–49)
+            </h2>
+            <p class="text-xs text-slate-400">
+              At <span class="text-rose-400 font-semibold">the start of window 43</span>, the generator changes its transaction distributions. The chart compares how the models rank labeled transactions in each window.
+            </p>
+          </div>
+          <span class="px-3 py-1.5 rounded-lg bg-rose-500/15 border border-rose-500/30 text-xs mono text-rose-300 font-semibold">
+            Simulated distribution shift begins at step 43
+          </span>
+        </div>
+        <div id="drift-chart" class="w-full h-[400px]"></div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- TAB 4: LIVE "WHAT-IF" TRANSACTION & SYNDICATE RING SIMULATOR          -->
+    <!-- ===================================================================== -->
+    <section id="tab-simulator" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-5">
+      <div class="lg:col-span-5 glass rounded-xl p-5 space-y-4">
+        <div>
+          <h2 class="text-base font-bold text-white">What-if transaction simulator</h2>
+          <p class="text-xs text-slate-400">The graph score uses a nearby training profile as an approximation for the hypothetical transaction.</p>
+          <p class="text-xs text-slate-400 mt-0.5">
+            Select an AML typology preset or customize transaction &amp; neighborhood parameters to test real-time inference (`POST /api/simulate`).
+          </p>
+        </div>
+
+        <!-- Presets -->
+        <div>
+          <label class="text-[11px] uppercase text-slate-400 font-semibold">Quick Archetype Presets</label>
+          <div class="grid grid-cols-2 gap-2 mt-1.5">
+            <button onclick="applySimPreset('camo_mule')" class="px-3 py-2 rounded-lg bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 text-xs font-medium text-sky-300 text-left transition">
+              🕵️ Camouflaged Syndicate Mule
+            </button>
+            <button onclick="applySimPreset('smurf')" class="px-3 py-2 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-xs font-medium text-rose-300 text-left transition">
+              💸 Smurfing Fan-Out Hub
+            </button>
+            <button onclick="applySimPreset('wash_ring')" class="px-3 py-2 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-xs font-medium text-amber-300 text-left transition">
+              🔄 Circular Wash Ring
+            </button>
+            <button onclick="applySimPreset('licit')" class="px-3 py-2 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-xs font-medium text-emerald-300 text-left transition">
+              ✅ Licit P2P / Merchant Settlement
+            </button>
+          </div>
+        </div>
+
+        <!-- Sliders -->
+        <div class="grid grid-cols-2 gap-3 text-xs">
+          <div>
+            <label class="text-slate-300 flex justify-between"><span>Amount (BTC)</span><span id="lbl-sim-amt" class="mono text-sky-400">1.15</span></label>
+            <input id="sim-amt" type="range" min="0.05" max="25" step="0.05" value="1.15" oninput="runSimulation()" class="w-full mt-1 accent-sky-500" />
+          </div>
+          <div>
+            <label class="text-slate-300 flex justify-between"><span>Wallet Velocity (/hr)</span><span id="lbl-sim-vel" class="mono text-sky-400">6.2</span></label>
+            <input id="sim-vel" type="range" min="0.5" max="30" step="0.5" value="6.2" oninput="runSimulation()" class="w-full mt-1 accent-sky-500" />
+          </div>
+          <div>
+            <label class="text-slate-300 flex justify-between"><span>UTXO Age (Hours)</span><span id="lbl-sim-utxo" class="mono text-sky-400">24.0</span></label>
+            <input id="sim-utxo" type="range" min="0.2" max="120" step="0.5" value="24.0" oninput="runSimulation()" class="w-full mt-1 accent-sky-500" />
+          </div>
+          <div>
+            <label class="text-slate-300 flex justify-between"><span>Local CoinJoin Score</span><span id="lbl-sim-cj" class="mono text-sky-400">0.24</span></label>
+            <input id="sim-cj" type="range" min="0.0" max="1.0" step="0.02" value="0.24" oninput="runSimulation()" class="w-full mt-1 accent-sky-500" />
+          </div>
+          <div>
+            <label class="text-slate-300 flex justify-between"><span>Graph In-Degree</span><span id="lbl-sim-indeg" class="mono text-indigo-400">4</span></label>
+            <input id="sim-indeg" type="range" min="1" max="25" step="1" value="4" oninput="runSimulation()" class="w-full mt-1 accent-indigo-500" />
+          </div>
+          <div>
+            <label class="text-slate-300 flex justify-between"><span>Graph Out-Degree</span><span id="lbl-sim-outdeg" class="mono text-indigo-400">7</span></label>
+            <input id="sim-outdeg" type="range" min="1" max="25" step="1" value="7" oninput="runSimulation()" class="w-full mt-1 accent-indigo-500" />
+          </div>
+          <div>
+            <label class="text-slate-300 flex justify-between"><span>1-Hop Neighbor Mixer</span><span id="lbl-sim-nbrcj" class="mono text-indigo-400">0.68</span></label>
+            <input id="sim-nbrcj" type="range" min="0.0" max="1.0" step="0.02" value="0.68" oninput="runSimulation()" class="w-full mt-1 accent-indigo-500" />
+          </div>
+          <div>
+            <label class="text-slate-300 flex justify-between"><span>2-Hop Syndicate Burst Z</span><span id="lbl-sim-nbrburst" class="mono text-indigo-400">2.6</span></label>
+            <input id="sim-nbrburst" type="range" min="-1.0" max="5.0" step="0.1" value="2.6" oninput="runSimulation()" class="w-full mt-1 accent-indigo-500" />
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between pt-2 border-t border-slate-800">
+          <label class="flex items-center gap-2 text-xs text-slate-200 cursor-pointer">
+            <input type="checkbox" id="sim-cycle" checked onchange="runSimulation()" class="rounded text-sky-500" />
+            <span>Participates in Directed Wash Cycle (SCC &gt; 1)</span>
+          </label>
+          <span id="sim-tier-badge" class="px-2.5 py-1 rounded text-xs font-bold mono bg-rose-500/20 text-rose-400">CRITICAL</span>
+        </div>
+      </div>
+
+      <!-- Right Column: Live Simulation Output & TreeSHAP -->
+      <div class="lg:col-span-7 glass rounded-xl p-5 flex flex-col justify-between space-y-4">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div class="p-3 rounded-xl bg-slate-900 border border-slate-800">
+            <div class="text-[10px] uppercase text-slate-400">1. Tabular Only</div>
+            <div id="sim-out-tab" class="text-xl font-bold mono text-slate-300 mt-1">--</div>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-900 border border-slate-800">
+            <div class="text-[10px] uppercase text-slate-400">2. Topology GBDT</div>
+            <div id="sim-out-topo" class="text-xl font-bold mono text-sky-400 mt-1">--</div>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-900 border border-slate-800">
+            <div class="text-[10px] uppercase text-slate-400">3. Deep GraphSAGE</div>
+            <div id="sim-out-gnn" class="text-xl font-bold mono text-indigo-400 mt-1">--</div>
+          </div>
+          <div class="p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/40">
+            <div class="text-[10px] uppercase text-emerald-300 font-semibold">4. Hybrid Ensemble</div>
+            <div id="sim-out-hyb" class="text-xl font-bold mono text-emerald-400 mt-1">--</div>
+          </div>
+        </div>
+
+        <div class="flex-1">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-sky-400 mb-2">
+            Real-Time Simulated TreeSHAP Feature Drivers
+          </h3>
+          <div id="sim-shap-chart" class="w-full h-[320px]"></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    let OVERVIEW_DATA = null;
+    let CURRENT_SUBGRAPH = null;
+    let GRAPH_NODES = [];
+    let GRAPH_EDGES = [];
+    let DRAG_NODE = null;
+
+    function switchTab(tab) {
+      ['forensics', 'benchmarks', 'drift', 'simulator'].forEach(t => {
+        document.getElementById(`tab-${t}`).classList.add('hidden');
+        document.getElementById(`tab-btn-${t}`).classList.remove('tab-active');
+      });
+      document.getElementById(`tab-${tab}`).classList.remove('hidden');
+      document.getElementById(`tab-btn-${tab}`).classList.add('tab-active');
+
+      if (tab === 'benchmarks' && OVERVIEW_DATA) renderBenchmarkCharts();
+      if (tab === 'drift' && OVERVIEW_DATA) renderDriftChart();
+      if (tab === 'simulator') runSimulation();
+    }
+
+    async function initDashboard() {
+      OVERVIEW_DATA = REPLAY ? REPLAY.overview : await getJson('/api/overview');
+
+      const meta = OVERVIEW_DATA.dataset_metadata;
+      const mHyb = OVERVIEW_DATA.model_metrics.Hybrid_GraphSAGE_LightGBM;
+      const mTab = OVERVIEW_DATA.model_metrics.Tabular_LightGBM;
+
+      document.getElementById('header-nodes-edges').textContent =
+        `${meta.num_nodes.toLocaleString()} NODES • ${meta.num_edges.toLocaleString()} EDGES • 49 TIMESTEPS`;
+
+      document.getElementById('kpi-hybrid-prauc').textContent = (mHyb.pr_auc * 100).toFixed(2) + '%';
+      const prDelta = ((mHyb.pr_auc - mTab.pr_auc) * 100).toFixed(1);
+      document.getElementById('kpi-prauc-delta').textContent = `+${prDelta} pp vs tabular`;
+
+      document.getElementById('kpi-camo-recall').textContent = (mHyb.camouflaged_mule_recall * 100).toFixed(1) + '%';
+      document.getElementById('kpi-camo-tab').textContent = `Tabular: ${(mTab.camouflaged_mule_recall * 100).toFixed(1)}%`;
+
+      document.getElementById('kpi-f1').textContent = (mHyb.f1_score * 100).toFixed(1) + '%';
+      document.getElementById('kpi-precision').textContent = `Prec: ${(mHyb.precision * 100).toFixed(1)}%`;
+
+      document.getElementById('kpi-savings').textContent = mHyb.tp + mHyb.fp;
+      document.getElementById('kpi-savings-gain').textContent = mHyb.tp + ' TP · ' + mHyb.fp + ' FP';
+
+      document.getElementById('kpi-graph-scale').textContent =
+        `${meta.num_nodes.toLocaleString()} Tx / ${meta.num_edges.toLocaleString()} Edges`;
+
+      populateBenchmarkTable();
+      await loadAlerts();
+    }
+
+    async function loadAlerts() {
+      const typo = document.getElementById('filter-typology').value;
+      const camo = document.getElementById('filter-camouflaged').checked;
+      const url = `/api/alerts?limit=45&typology=${encodeURIComponent(typo)}&camouflaged_only=${camo}`;
+      const replayAlerts = REPLAY?.alerts.filter(alert =>
+        (typo === 'ALL' || alert.typology === typo) && (!camo || alert.is_camouflaged)
+      );
+      const data = REPLAY ? { count: replayAlerts.length, alerts: replayAlerts } : await getJson(url);
+
+      document.getElementById('alert-count-badge').textContent = `${data.count} alerts`;
+      const container = document.getElementById('alert-list-container');
+      container.innerHTML = '';
+      if (data.alerts.length === 0) container.textContent = 'No cases match these filters.';
+
+      data.alerts.forEach((a, idx) => {
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'w-full text-left p-3 rounded-xl bg-slate-900/85 border border-slate-800 glass-hover cursor-pointer transition';
+        card.onclick = () => loadTransactionDossier(a.tx_id);
+
+        const camoBadge = a.is_camouflaged
+          ? `<span class="px-1.5 py-0.5 rounded text-[10px] bg-sky-500/20 text-sky-300 border border-sky-500/30 font-semibold">CAMOUFLAGED MULE</span>`
+          : '';
+
+        card.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="mono text-xs font-bold text-white">${a.tx_id}</span>
+            <div class="flex items-center gap-1.5">
+              ${camoBadge}
+              <span class="px-2 py-0.5 rounded text-[10px] mono font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                ${(a.prob_hybrid * 100).toFixed(1)}%
+              </span>
+            </div>
+          </div>
+          <div class="flex items-center justify-between mt-1.5 text-[11px] text-slate-400">
+            <span>${a.typology.replaceAll('_', ' ')}</span>
+            <span class="mono text-emerald-400">GNN Δ: +${(a.gnn_uplift * 100).toFixed(1)}%</span>
+          </div>
+          <div class="flex items-center justify-between mt-1 text-[10px] mono text-slate-500">
+            <span>Step ${a.timestep} • ${a.tx_amount_btc} BTC</span>
+            <span>In:${a.in_degree} / Out:${a.out_degree}</span>
+          </div>
+        `;
+        container.appendChild(card);
+
+        if (idx === 0) {
+          loadTransactionDossier(a.tx_id);
+        }
+      });
+    }
+
+    async function loadTransactionDossier(txId) {
+      if (REPLAY && !Object.hasOwn(REPLAY.cases, txId)) {
+        document.getElementById('dashboard-error').textContent =
+          'This neighbor is visible in the graph. Select a case in the queue to see its saved dossier.';
+        return;
+      }
+      const d = REPLAY ? REPLAY.cases[txId] : await getJson('/api/transaction/' + encodeURIComponent(txId));
+      document.getElementById('dashboard-error').textContent = '';
+
+      document.getElementById('dossier-tx-badge').textContent = d.tx_id;
+      document.getElementById('dossier-typo-badge').textContent = d.typology.replaceAll('_', ' ');
+
+      const s = d.scores;
+      document.getElementById('score-tabular').textContent = (s.tabular_baseline_prob * 100).toFixed(1) + '%';
+      document.getElementById('bar-tabular').style.width = (s.tabular_baseline_prob * 100) + '%';
+
+      document.getElementById('score-topo').textContent = (s.topology_lgbm_prob * 100).toFixed(1) + '%';
+      document.getElementById('bar-topo').style.width = (s.topology_lgbm_prob * 100) + '%';
+
+      document.getElementById('score-gnn').textContent = (s.deep_gnn_prob * 100).toFixed(1) + '%';
+      document.getElementById('bar-gnn').style.width = (s.deep_gnn_prob * 100) + '%';
+
+      document.getElementById('score-hybrid').textContent = (s.hybrid_ensemble_prob * 100).toFixed(1) + '%';
+      document.getElementById('bar-hybrid').style.width = (s.hybrid_ensemble_prob * 100) + '%';
+
+      const up = s.gnn_over_tabular_uplift * 100;
+      document.getElementById('score-uplift').textContent = (up >= 0 ? '+' : '') + up.toFixed(1) + '%';
+
+      document.getElementById('subgraph-summary-stats').textContent =
+        `Ego-Net: ${d.subgraph.num_subgraph_nodes} nodes, ${d.subgraph.num_subgraph_edges} directed edges, ${d.subgraph.high_risk_neighbors_count} high-risk counterparties.`;
+
+      // Render SAR narrative with markdown bolding converted to HTML
+      document.getElementById('sar-narrative-box').innerHTML = d.sar_compliance_narrative
+        .replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-semibold">$1</strong>')
+        .replace(/`(.*?)`/g, '<code class="mono text-sky-300 bg-slate-900 px-1 rounded">$1</code>');
+
+      document.getElementById('meta-wallet').textContent = d.wallet_id;
+      document.getElementById('meta-timestep').textContent = `Step ${d.timestep} ${d.timestep >= 43 ? '(Post-Drift)' : ''}`;
+      document.getElementById('meta-truth').textContent = d.true_label_name;
+      document.getElementById('meta-truth').className =
+        'text-xs mono font-semibold mt-0.5 ' + (d.true_label === 1 ? 'text-rose-400' : 'text-emerald-400');
+
+      renderShapChart(d.top_feature_attributions, 'shap-chart');
+      setupSubgraphCanvas(d.subgraph);
+    }
+
+    function renderShapChart(attributions, containerId) {
+      const items = [...attributions].slice(0, 9).reverse();
+      const yLabels = items.map(a => a.display_name);
+      const xVals = items.map(a => a.shap_log_odds);
+      const colors = xVals.map(v => v >= 0 ? '#f43f5e' : '#38bdf8');
+
+      Plotly.newPlot(containerId, [{
+        type: 'bar',
+        orientation: 'h',
+        x: xVals,
+        y: yLabels,
+        marker: { color: colors, line: { width: 0 } },
+        text: xVals.map(v => (v >= 0 ? '+' : '') + v.toFixed(2)),
+        textposition: 'outside',
+        cliponaxis: false,
+        hovertemplate: '<b>%{y}</b><br>SHAP Log-Odds: %{x:.3f}<extra></extra>'
+      }], {
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        margin: { l: 210, r: 45, t: 10, b: 30 },
+        xaxis: {
+          title: { text: 'SHAP Contribution (Log-Odds Impact)', font: { size: 11, color: '#94a3b8' } },
+          gridcolor: '#1e293b',
+          zerolinecolor: '#475569',
+          tickfont: { color: '#94a3b8', size: 10 }
+        },
+        yaxis: { tickfont: { color: '#e2e8f0', size: 11 } },
+        font: { family: 'Inter, sans-serif' }
+      }, { displayModeBar: false, responsive: true });
+    }
+
+    // Interactive Force-Directed Ego-Graph Renderer on HTML5 Canvas
+    function setupSubgraphCanvas(subgraph) {
+      CURRENT_SUBGRAPH = subgraph;
+      const canvas = document.getElementById('subgraph-canvas');
+      const W = canvas.width;
+      const H = canvas.height;
+
+      const idxMap = {};
+      GRAPH_NODES = subgraph.nodes.map((n, i) => {
+        idxMap[n.node_idx] = i;
+        const angle = (2 * Math.PI * i) / Math.max(1, subgraph.nodes.length);
+        const radius = n.is_target ? 0 : (n.hop_distance === 1 ? 95 : 145);
+        return {
+          ...n,
+          x: W / 2 + radius * Math.cos(angle) + (Math.random() - 0.5) * 18,
+          y: H / 2 + radius * Math.sin(angle) + (Math.random() - 0.5) * 18,
+          vx: 0,
+          vy: 0
+        };
+      });
+
+      GRAPH_EDGES = subgraph.edges
+        .filter(e => idxMap[e.src_idx] !== undefined && idxMap[e.dst_idx] !== undefined)
+        .map(e => ({
+          ...e,
+          source: GRAPH_NODES[idxMap[e.src_idx]],
+          target: GRAPH_NODES[idxMap[e.dst_idx]]
+        }));
+
+      // Run 75 steps of force-directed relaxation for clean layout
+      for (let step = 0; step < 75; step++) {
+        for (let i = 0; i < GRAPH_NODES.length; i++) {
+          for (let j = i + 1; j < GRAPH_NODES.length; j++) {
+            const dx = GRAPH_NODES[j].x - GRAPH_NODES[i].x;
+            const dy = GRAPH_NODES[j].y - GRAPH_NODES[i].y;
+            const distSq = Math.max(80, dx * dx + dy * dy);
+            const rep = 2200 / distSq;
+            const d = Math.sqrt(distSq);
+            GRAPH_NODES[i].vx -= (dx / d) * rep;
+            GRAPH_NODES[i].vy -= (dy / d) * rep;
+            GRAPH_NODES[j].vx += (dx / d) * rep;
+            GRAPH_NODES[j].vy += (dy / d) * rep;
+          }
+        }
+        for (const e of GRAPH_EDGES) {
+          const dx = e.target.x - e.source.x;
+          const dy = e.target.y - e.source.y;
+          const d = Math.max(1, Math.sqrt(dx * dx + dy * dy));
+          const force = (d - 82) * 0.045;
+          e.source.vx += (dx / d) * force;
+          e.source.vy += (dy / d) * force;
+          e.target.vx -= (dx / d) * force;
+          e.target.vy -= (dy / d) * force;
+        }
+        for (const n of GRAPH_NODES) {
+          if (n.is_target) {
+            n.x = W / 2;
+            n.y = H / 2;
+          } else {
+            n.x = Math.max(28, Math.min(W - 28, n.x + n.vx * 0.25));
+            n.y = Math.max(28, Math.min(H - 28, n.y + n.vy * 0.25));
+          }
+          n.vx *= 0.5;
+          n.vy *= 0.5;
+        }
+      }
+      drawSubgraphCanvas();
+    }
+
+    function drawSubgraphCanvas() {
+      const canvas = document.getElementById('subgraph-canvas');
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw Directed Edges with GAT Attention Thickness
+      for (const e of GRAPH_EDGES) {
+        const { source, target, attention_weight } = e;
+        const dx = target.x - source.x;
+        const dy = target.y - source.y;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        if (len < 1) continue;
+
+        const isHighAttn = attention_weight >= 0.45;
+        ctx.strokeStyle = isHighAttn ? 'rgba(56, 189, 248, 0.78)' : 'rgba(100, 116, 139, 0.42)';
+        ctx.lineWidth = Math.max(1.2, Math.min(4.5, attention_weight * 5.2));
+
+        ctx.beginPath();
+        ctx.moveTo(source.x, source.y);
+        ctx.lineTo(target.x, target.y);
+        ctx.stroke();
+
+        // Directed Arrowhead
+        const ux = dx / len;
+        const uy = dy / len;
+        const arrowX = target.x - ux * 13;
+        const arrowY = target.y - uy * 13;
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.beginPath();
+        ctx.moveTo(arrowX, arrowY);
+        ctx.lineTo(arrowX - ux * 7 - uy * 4, arrowY - uy * 7 + ux * 4);
+        ctx.lineTo(arrowX - ux * 7 + uy * 4, arrowY - uy * 7 - ux * 4);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // Draw Nodes
+      for (const n of GRAPH_NODES) {
+        const radius = n.is_target ? 13 : 9;
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, radius, 0, Math.PI * 2);
+
+        if (n.is_target) {
+          ctx.fillStyle = '#fbbf24';
+          ctx.shadowColor = '#fbbf24';
+          ctx.shadowBlur = 14;
+        } else if (n.label === 1) {
+          ctx.fillStyle = '#f43f5e';
+          ctx.shadowColor = '#f43f5e';
+          ctx.shadowBlur = 8;
+        } else if (n.label === 0) {
+          ctx.fillStyle = '#10b981';
+          ctx.shadowBlur = 0;
+        } else {
+          ctx.fillStyle = '#94a3b8';
+          ctx.shadowBlur = 0;
+        }
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        ctx.lineWidth = n.is_target ? 2.5 : 1.5;
+        ctx.strokeStyle = '#0f172a';
+        ctx.stroke();
+
+        // Label
+        ctx.fillStyle = n.is_target ? '#fef08a' : '#cbd5e1';
+        ctx.font = n.is_target ? 'bold 10px JetBrains Mono' : '9px JetBrains Mono';
+        ctx.textAlign = 'center';
+        ctx.fillText(n.tx_id.slice(-6), n.x, n.y - radius - 4);
+      }
+    }
+
+    // Canvas Mouse Interaction (Drag & Click to Pivot)
+    (function bindCanvasEvents() {
+      const canvas = document.getElementById('subgraph-canvas');
+      const tooltip = document.getElementById('canvas-tooltip');
+
+      function getMousePos(evt) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+          x: (evt.clientX - rect.left) * (canvas.width / rect.width),
+          y: (evt.clientY - rect.top) * (canvas.height / rect.height),
+          rawX: evt.clientX - rect.left,
+          rawY: evt.clientY - rect.top
+        };
+      }
+
+      canvas.addEventListener('mousedown', evt => {
+        const pos = getMousePos(evt);
+        for (const n of GRAPH_NODES) {
+          if (Math.hypot(n.x - pos.x, n.y - pos.y) <= 14) {
+            DRAG_NODE = n;
+            break;
+          }
+        }
+      });
+
+      canvas.addEventListener('mousemove', evt => {
+        const pos = getMousePos(evt);
+        if (DRAG_NODE) {
+          DRAG_NODE.x = pos.x;
+          DRAG_NODE.y = pos.y;
+          drawSubgraphCanvas();
+          return;
+        }
+        let hovered = null;
+        for (const n of GRAPH_NODES) {
+          if (Math.hypot(n.x - pos.x, n.y - pos.y) <= 13) {
+            hovered = n;
+            break;
+          }
+        }
+        if (hovered) {
+          tooltip.classList.remove('hidden');
+          tooltip.style.left = (pos.rawX + 12) + 'px';
+          tooltip.style.top = (pos.rawY + 12) + 'px';
+          tooltip.innerHTML = `
+            <div class="font-bold text-white">${hovered.tx_id} (${hovered.label_name})</div>
+            <div class="text-sky-300">Hybrid Risk: ${(hovered.prob_hybrid * 100).toFixed(1)}%</div>
+            <div class="text-slate-400">${hovered.typology.replaceAll('_', ' ')} • ${hovered.tx_amount_btc} BTC</div>
+          `;
+        } else {
+          tooltip.classList.add('hidden');
+        }
+      });
+
+      canvas.addEventListener('mouseup', () => { DRAG_NODE = null; });
+      canvas.addEventListener('dblclick', evt => {
+        const pos = getMousePos(evt);
+        for (const n of GRAPH_NODES) {
+          if (Math.hypot(n.x - pos.x, n.y - pos.y) <= 14) {
+            loadTransactionDossier(n.tx_id);
+            break;
+          }
+        }
+      });
+    })();
+
+    function populateBenchmarkTable() {
+      const tbody = document.getElementById('benchmark-table-body');
+      tbody.innerHTML = '';
+      const meta = [
+        { key: 'Tabular_LightGBM', name: '1. Tabular LightGBM (Baseline)', feat: '18 Local Tx Features Only', badge: 'text-slate-300' },
+        { key: 'Topology_LightGBM', name: '2. Topology-Augmented LightGBM', feat: 'Local + 1-Hop Graph Centrality', badge: 'text-sky-400' },
+        { key: 'Deep_GraphSAGE_GAT', name: '3. Deep Directed GraphSAGE + GAT', feat: 'End-to-End Neural Message Passing', badge: 'text-indigo-400' },
+        { key: 'Hybrid_GraphSAGE_LightGBM', name: '4. Hybrid GraphSAGE + LightGBM (Ours)', feat: '64-D GNN Embeddings + Multi-Hop Topology', badge: 'text-emerald-400 font-bold' }
+      ];
+
+      meta.forEach(rowMeta => {
+        const m = OVERVIEW_DATA.model_metrics[rowMeta.key];
+        const tr = document.createElement('tr');
+        tr.className = rowMeta.key === 'Hybrid_GraphSAGE_LightGBM' ? 'bg-emerald-500/10' : '';
+        tr.innerHTML = `
+          <td class="py-3 px-3 ${rowMeta.badge}">${rowMeta.name}</td>
+          <td class="py-3 px-3 text-slate-400 font-sans">${rowMeta.feat}</td>
+          <td class="py-3 px-3 font-semibold">${(m.pr_auc * 100).toFixed(2)}%</td>
+          <td class="py-3 px-3">${(m.roc_auc * 100).toFixed(2)}%</td>
+          <td class="py-3 px-3 font-semibold">${(m.f1_score * 100).toFixed(2)}%</td>
+          <td class="py-3 px-3">${(m.precision * 100).toFixed(2)}%</td>
+          <td class="py-3 px-3">${(m.recall * 100).toFixed(2)}%</td>
+          <td class="py-3 px-3 font-bold ${rowMeta.badge}">${(m.camouflaged_mule_recall * 100).toFixed(1)}%</td>
+          <td class="py-3 px-3 text-amber-300">${m.fp}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderBenchmarkCharts() {
+      const tData = OVERVIEW_DATA.typology_recall_comparison;
+      const typologies = tData.map(d => d.typology.replaceAll('_', ' '));
+
+      Plotly.newPlot('typology-chart', [
+        { name: 'Tabular Baseline', type: 'bar', x: typologies, y: tData.map(d => d.tabular_recall * 100), marker: { color: '#64748b' } },
+        { name: 'Topology LightGBM', type: 'bar', x: typologies, y: tData.map(d => d.topology_lgbm_recall * 100), marker: { color: '#38bdf8' } },
+        { name: 'Deep GraphSAGE+GAT', type: 'bar', x: typologies, y: tData.map(d => d.gnn_recall * 100), marker: { color: '#818cf8' } },
+        { name: 'Hybrid GNN+LightGBM', type: 'bar', x: typologies, y: tData.map(d => d.hybrid_recall * 100), marker: { color: '#10b981' } }
+      ], {
+        barmode: 'group',
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        margin: { l: 45, r: 20, t: 20, b: 60 },
+        yaxis: { title: 'Recall (%)', gridcolor: '#1e293b', tickfont: { color: '#94a3b8' }, range: [0, 105] },
+        xaxis: { tickfont: { color: '#e2e8f0', size: 11 } },
+        legend: { orientation: 'h', y: 1.12, font: { color: '#cbd5e1', size: 11 } }
+      }, { displayModeBar: false, responsive: true });
+
+      const fData = [...OVERVIEW_DATA.feature_importances].slice(0, 14).reverse();
+      Plotly.newPlot('importance-chart', [{
+        type: 'bar',
+        orientation: 'h',
+        x: fData.map(d => d.importance * 100),
+        y: fData.map(d => d.feature),
+        marker: {
+          color: fData.map(d => d.category.includes('Topological') ? '#38bdf8' : '#94a3b8')
+        }
+      }], {
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        margin: { l: 195, r: 25, t: 15, b: 35 },
+        xaxis: { title: 'Relative Importance (%)', gridcolor: '#1e293b', tickfont: { color: '#94a3b8' } },
+        yaxis: { tickfont: { color: '#e2e8f0', size: 11 } }
+      }, { displayModeBar: false, responsive: true });
+    }
+
+    function renderDriftChart() {
+      const drift = OVERVIEW_DATA.temporal_drift;
+      const steps = drift.map(d => d.timestep);
+
+      Plotly.newPlot('drift-chart', [
+        {
+          name: 'Hybrid GraphSAGE + LightGBM (Average precision)',
+          x: steps,
+          y: drift.map(d => d.hybrid_pr_auc * 100),
+          mode: 'lines+markers',
+          line: { color: '#10b981', width: 3 }
+        },
+        {
+          name: 'Deep GraphSAGE + GAT (Average precision)',
+          x: steps,
+          y: drift.map(d => d.gnn_pr_auc * 100),
+          mode: 'lines',
+          line: { color: '#818cf8', width: 2, dash: 'dot' }
+        },
+        {
+          name: 'Tabular Baseline (Average precision)',
+          x: steps,
+          y: drift.map(d => d.tabular_pr_auc * 100),
+          mode: 'lines+markers',
+          line: { color: '#f43f5e', width: 2.5 }
+        }
+      ], {
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        margin: { l: 50, r: 30, t: 25, b: 45 },
+        xaxis: { title: 'Blockchain Temporal Window (Timestep 1 → 49)', gridcolor: '#1e293b', tickfont: { color: '#94a3b8' } },
+        yaxis: { title: 'Illicit Average precision (%)', gridcolor: '#1e293b', tickfont: { color: '#94a3b8' }, range: [40, 103] },
+        legend: { orientation: 'h', y: 1.1, font: { color: '#e2e8f0' } },
+        shapes: [
+          {
+            type: 'line', x0: 34.5, x1: 34.5, y0: 40, y1: 103,
+            line: { color: '#38bdf8', width: 1.5, dash: 'dash' }
+          },
+          {
+            type: 'rect', x0: 43, x1: 49, y0: 40, y1: 103,
+            fillcolor: 'rgba(244, 63, 94, 0.10)', line: { width: 0 }
+          }
+        ],
+        annotations: [
+          { x: 34.5, y: 46, text: 'Train/Val → Test Split', showarrow: false, font: { color: '#38bdf8', size: 11 } },
+          { x: 46, y: 52, text: 'Simulated shift at step 43', showarrow: false, font: { color: '#fb7185', size: 11 } }
+        ]
+      }, { displayModeBar: false, responsive: true });
+    }
+
+    function applySimPreset(preset) {
+      const presets = {
+        camo_mule: { amt: 0.95, vel: 5.5, utxo: 28.0, cj: 0.22, indeg: 4, outdeg: 6, nbrcj: 0.74, nbrburst: 2.9, cycle: true },
+        smurf: { amt: 0.88, vel: 16.5, utxo: 2.5, cj: 0.48, indeg: 2, outdeg: 12, nbrcj: 0.65, nbrburst: 2.7, cycle: false },
+        wash_ring: { amt: 3.40, vel: 14.0, utxo: 3.0, cj: 0.52, indeg: 3, outdeg: 3, nbrcj: 0.60, nbrburst: 2.4, cycle: true },
+        licit: { amt: 0.65, vel: 2.5, utxo: 64.0, cj: 0.08, indeg: 1, outdeg: 2, nbrcj: 0.12, nbrburst: -0.2, cycle: false }
+      };
+      const p = presets[preset];
+      document.getElementById('sim-amt').value = p.amt;
+      document.getElementById('sim-vel').value = p.vel;
+      document.getElementById('sim-utxo').value = p.utxo;
+      document.getElementById('sim-cj').value = p.cj;
+      document.getElementById('sim-indeg').value = p.indeg;
+      document.getElementById('sim-outdeg').value = p.outdeg;
+      document.getElementById('sim-nbrcj').value = p.nbrcj;
+      document.getElementById('sim-nbrburst').value = p.nbrburst;
+      document.getElementById('sim-cycle').checked = p.cycle;
+      runSimulation();
+    }
+
+    async function runSimulation() {
+      const amt = parseFloat(document.getElementById('sim-amt').value);
+      const vel = parseFloat(document.getElementById('sim-vel').value);
+      const utxo = parseFloat(document.getElementById('sim-utxo').value);
+      const cj = parseFloat(document.getElementById('sim-cj').value);
+      const indeg = parseInt(document.getElementById('sim-indeg').value);
+      const outdeg = parseInt(document.getElementById('sim-outdeg').value);
+      const nbrcj = parseFloat(document.getElementById('sim-nbrcj').value);
+      const nbrburst = parseFloat(document.getElementById('sim-nbrburst').value);
+      const cycle = document.getElementById('sim-cycle').checked ? 1 : 0;
+
+      document.getElementById('lbl-sim-amt').textContent = amt.toFixed(2);
+      document.getElementById('lbl-sim-vel').textContent = vel.toFixed(1);
+      document.getElementById('lbl-sim-utxo').textContent = utxo.toFixed(1);
+      document.getElementById('lbl-sim-cj').textContent = cj.toFixed(2);
+      document.getElementById('lbl-sim-indeg').textContent = indeg;
+      document.getElementById('lbl-sim-outdeg').textContent = outdeg;
+      document.getElementById('lbl-sim-nbrcj').textContent = nbrcj.toFixed(2);
+      document.getElementById('lbl-sim-nbrburst').textContent = nbrburst.toFixed(1);
+
+      const res = await fetch('/api/simulate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tx_amount_btc: amt,
+          fee_to_amount_ratio: 0.0032,
+          num_inputs: Math.max(1, indeg),
+          num_outputs: Math.max(1, outdeg),
+          utxo_age_hours: utxo,
+          hourly_tx_velocity: vel,
+          coinjoin_similarity_score: cj,
+          burst_activity_zscore: vel > 10 ? 2.1 : 0.3,
+          graph_in_degree: indeg,
+          graph_out_degree: outdeg,
+          graph_in_cycle_indicator: cycle,
+          nbr_1hop_mean_coinjoin: nbrcj,
+          nbr_1hop_max_velocity: Math.max(vel, nbrcj * 24),
+          nbr_2hop_mean_burst_zscore: nbrburst
+        })
+      });
+      const data = await res.json();
+      const s = data.scores;
+
+      document.getElementById('sim-out-tab').textContent = (s.tabular_baseline_prob * 100).toFixed(1) + '%';
+      document.getElementById('sim-out-topo').textContent = (s.topology_lgbm_prob * 100).toFixed(1) + '%';
+      document.getElementById('sim-out-gnn').textContent = (s.deep_gnn_prob * 100).toFixed(1) + '%';
+      document.getElementById('sim-out-hyb').textContent = (s.hybrid_ensemble_prob * 100).toFixed(1) + '%';
+
+      const tierEl = document.getElementById('sim-tier-badge');
+      tierEl.textContent = data.risk_tier;
+      tierEl.className = 'px-2.5 py-1 rounded text-xs font-bold mono ' + (
+        data.risk_tier === 'CRITICAL' ? 'bg-rose-500/20 text-rose-400' :
+        data.risk_tier === 'HIGH' ? 'bg-amber-500/20 text-amber-400' :
+        'bg-emerald-500/20 text-emerald-400'
+      );
+
+      renderShapChart(data.top_shap_drivers, 'sim-shap-chart');
+    }
+
+    function copySarNarrative() {
+      const txt = document.getElementById('sar-narrative-box').innerText;
+      navigator.clipboard.writeText(txt);
+      const btn = document.getElementById('copy-sar-btn');
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = 'Copy Report'; }, 1500);
+    }
+
+    let REPLAY = null;
+    async function getJson(url) {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Could not load ' + url);
+      return response.json();
+    }
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      try {
+        if (document.body.dataset.mode === 'replay') {
+          REPLAY = await getJson('./replay.json');
+          document.getElementById('tab-btn-simulator').hidden = true;
+          const apiDocs = document.getElementById('api-docs-link');
+          apiDocs.href = 'https://github.com/Metwally99/cryptoguard-gnn#run-locally';
+          apiDocs.textContent = 'Run the API ↗';
+          document.getElementById('demo-context').textContent =
+            'Interactive replay of held-out synthetic transactions. Use the queue to inspect saved graph cases and compare model scores.';
+        }
+        await initDashboard();
+      } catch (error) {
+        console.error(error);
+        document.getElementById('dashboard-error').textContent =
+          'The dashboard could not load. Refresh the page to try again.';
+      }
+    });
+  </script>
+</body>
+</html>

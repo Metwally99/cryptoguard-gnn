@@ -1,0 +1,24 @@
+name: Verify CryptoGuard
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  train-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Train and build the API image
+        run: docker build -t cryptoguard .
+      - name: Run model and API tests
+        run: docker run --rm cryptoguard python -m pytest -q
+      - name: Check the running service
+        run: |
+          docker run --rm -d --name cryptoguard -p 127.0.0.1:8000:8000 cryptoguard
+          curl --fail --retry 8 --retry-all-errors --retry-delay 2 http://127.0.0.1:8000/api/health
+          curl --fail http://127.0.0.1:8000/ > /dev/null

@@ -1,0 +1,20 @@
+{
+  "num_nodes": 8838,
+  "num_edges": 18939,
+  "num_timesteps": 49,
+  "illicit_count": 2107,
+  "licit_count": 5137,
+  "unknown_count": 1594,
+  "camouflaged_illicit_count": 913,
+  "typology_breakdown": {
+    "Licit_Standard": 4874,
+    "Unknown_Unlabeled": 1594,
+    "Smurfing_FanOut_FanIn": 735,
+    "Peel_Chain_Layering": 546,
+    "Circular_Wash_Ring": 490,
+    "CoinJoin_Mixer_Cluster": 336,
+    "Licit_Exchange_Hub": 263
+  },
+  "concept_drift_timestep": 43,
+  "dataset_source": "Synthetic AML transaction graph (49 windows)"
+}

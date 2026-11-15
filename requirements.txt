@@ -1,0 +1,13 @@
+numpy==2.5.1
+pandas==2.2.3
+scipy==1.18.0
+scikit-learn==1.6.1
+networkx==3.4.2
+torch==2.9.1
+lightgbm==4.7.0
+fastapi==0.125.0
+uvicorn==0.38.0
+pydantic==2.13.4
+pyarrow==19.0.0
+httpx==0.28.1
+pytest==8.3.4

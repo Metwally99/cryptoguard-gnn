@@ -1,0 +1,200 @@
+{
+  "dataset_metadata": {
+    "num_nodes": 8838,
+    "num_edges": 18939,
+    "num_timesteps": 49,
+    "illicit_count": 2107,
+    "licit_count": 5137,
+    "unknown_count": 1594,
+    "camouflaged_illicit_count": 913,
+    "typology_breakdown": {
+      "Licit_Standard": 4874,
+      "Unknown_Unlabeled": 1594,
+      "Smurfing_FanOut_FanIn": 735,
+      "Peel_Chain_Layering": 546,
+      "Circular_Wash_Ring": 490,
+      "CoinJoin_Mixer_Cluster": 336,
+      "Licit_Exchange_Hub": 263
+    },
+    "concept_drift_timestep": 43,
+    "dataset_source": "Synthetic AML transaction graph (49 windows)",
+    "synthetic": true,
+    "training_time_sec": 11.16,
+    "train_nodes": 4432,
+    "val_nodes": 602,
+    "test_nodes": 2210
+  },
+  "model_metrics": {
+    "Tabular_LightGBM": {
+      "pr_auc": 0.7796,
+      "roc_auc": 0.8258,
+      "f1_score": 0.6567,
+      "precision": 0.8194,
+      "recall": 0.5479,
+      "precision_at_100": 1.0,
+      "recall_at_top10pct": 0.3255,
+      "camouflaged_mule_recall": 0.1318,
+      "optimal_threshold": 0.5752,
+      "tp": 372,
+      "fp": 82,
+      "fn": 307,
+      "tn": 1449
+    },
+    "Topology_LightGBM": {
+      "pr_auc": 0.9725,
+      "roc_auc": 0.9838,
+      "f1_score": 0.9112,
+      "precision": 0.9079,
+      "recall": 0.9146,
+      "precision_at_100": 1.0,
+      "recall_at_top10pct": 0.3255,
+      "camouflaged_mule_recall": 0.8481,
+      "optimal_threshold": 0.5519,
+      "tp": 621,
+      "fp": 63,
+      "fn": 58,
+      "tn": 1468
+    },
+    "Deep_GraphSAGE_GAT": {
+      "pr_auc": 0.9882,
+      "roc_auc": 0.9932,
+      "f1_score": 0.9474,
+      "precision": 0.9663,
+      "recall": 0.9293,
+      "precision_at_100": 1.0,
+      "recall_at_top10pct": 0.3255,
+      "camouflaged_mule_recall": 0.8797,
+      "optimal_threshold": 0.6081,
+      "tp": 631,
+      "fp": 22,
+      "fn": 48,
+      "tn": 1509
+    },
+    "Hybrid_GraphSAGE_LightGBM": {
+      "pr_auc": 0.9953,
+      "roc_auc": 0.9978,
+      "f1_score": 0.9631,
+      "precision": 0.9645,
+      "recall": 0.9617,
+      "precision_at_100": 1.0,
+      "recall_at_top10pct": 0.3255,
+      "camouflaged_mule_recall": 0.9312,
+      "optimal_threshold": 0.2255,
+      "tp": 653,
+      "fp": 24,
+      "fn": 26,
+      "tn": 1507
+    }
+  },
+  "typology_recall_comparison": [
+    {
+      "typology": "Circular_Wash_Ring",
+      "count": 150,
+      "tabular_recall": 0.6,
+      "topology_lgbm_recall": 0.8667,
+      "gnn_recall": 0.9533,
+      "hybrid_recall": 0.98
+    },
+    {
+      "typology": "CoinJoin_Mixer_Cluster",
+      "count": 132,
+      "tabular_recall": 0.4848,
+      "topology_lgbm_recall": 0.9545,
+      "gnn_recall": 0.8409,
+      "hybrid_recall": 0.9167
+    },
+    {
+      "typology": "Peel_Chain_Layering",
+      "count": 138,
+      "tabular_recall": 0.558,
+      "topology_lgbm_recall": 0.942,
+      "gnn_recall": 0.9638,
+      "hybrid_recall": 0.9855
+    },
+    {
+      "typology": "Smurfing_FanOut_FanIn",
+      "count": 259,
+      "tabular_recall": 0.5444,
+      "topology_lgbm_recall": 0.9073,
+      "gnn_recall": 0.9421,
+      "hybrid_recall": 0.9614
+    }
+  ],
+  "top_15_features": [
+    {
+      "feature": "nbr_2hop_mean_coinjoin",
+      "category": "Topological Graph Feature",
+      "importance": 0.2441
+    },
+    {
+      "feature": "graph_core_number",
+      "category": "Topological Graph Feature",
+      "importance": 0.1754
+    },
+    {
+      "feature": "graph_clustering_coeff",
+      "category": "Topological Graph Feature",
+      "importance": 0.1564
+    },
+    {
+      "feature": "coinjoin_similarity_score",
+      "category": "Local Transaction Feature",
+      "importance": 0.0687
+    },
+    {
+      "feature": "nbr_2hop_mean_burst_zscore",
+      "category": "Topological Graph Feature",
+      "importance": 0.0521
+    },
+    {
+      "feature": "time_since_last_tx_min",
+      "category": "Local Transaction Feature",
+      "importance": 0.0332
+    },
+    {
+      "feature": "graph_pagerank",
+      "category": "Topological Graph Feature",
+      "importance": 0.0308
+    },
+    {
+      "feature": "num_inputs",
+      "category": "Local Transaction Feature",
+      "importance": 0.0237
+    },
+    {
+      "feature": "hourly_tx_velocity",
+      "category": "Local Transaction Feature",
+      "importance": 0.0237
+    },
+    {
+      "feature": "timezone_anomaly_score",
+      "category": "Local Transaction Feature",
+      "importance": 0.0237
+    },
+    {
+      "feature": "nbr_2hop_mean_velocity",
+      "category": "Topological Graph Feature",
+      "importance": 0.0213
+    },
+    {
+      "feature": "script_complexity_score",
+      "category": "Local Transaction Feature",
+      "importance": 0.0166
+    },
+    {
+      "feature": "tx_amount_btc",
+      "category": "Local Transaction Feature",
+      "importance": 0.0142
+    },
+    {
+      "feature": "nbr_1hop_mean_amount",
+      "category": "Topological Graph Feature",
+      "importance": 0.0118
+    },
+    {
+      "feature": "nbr_1hop_mean_burst_zscore",
+      "category": "Topological Graph Feature",
+      "importance": 0.0118
+    }
+  ]
+}

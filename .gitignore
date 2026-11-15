@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.env
+.env.*
+/data/raw/
+/data/synthetic-input/
+/artifacts/*.pkl
+/artifacts/*.tmp
+/docs/CryptoGuard_GNN_Complete_Book.pdf
+/docs/figures/
+/scripts/generate_book_*.py

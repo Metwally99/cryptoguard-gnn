@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cryptoguard-aml-gnn"
+version = "1.0.0"
+description = "Hybrid Directed-GraphSAGE + Edge-Attention GAT + LightGBM Anti-Money Laundering & Crypto Fraud Detection Engine"
+readme = "README.md"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
