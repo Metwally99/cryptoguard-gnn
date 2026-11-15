@@ -17,9 +17,9 @@ The test set contains 2,210 labeled transactions, including 679 positives, from 
 | Tabular LightGBM | 0.7796 | 0.6567 | 0.8194 | 0.5479 |
 | LightGBM with graph features | 0.9725 | 0.9112 | 0.9079 | 0.9146 |
 | Directed GraphSAGE with edge attention | 0.9882 | 0.9474 | 0.9663 | 0.9293 |
-| **Hybrid GNN and LightGBM** | **0.9953** | **0.9631** | **0.9645** | **0.9617** |
+| **Hybrid GNN and LightGBM** | **0.9954** | **0.9631** | **0.9645** | **0.9617** |
 
-Average precision improved by **21.57 percentage points** over the tabular baseline. The nine-feature graph baseline explains most of that gain. At their validation thresholds, recall on the synthetic subgroup with ordinary-looking local features rose from **13.18% to 93.12%**. The hybrid model flagged 677 test transactions, including 653 true positives and 24 false positives. These values describe this simulation and seed.
+Average precision improved by **21.58 percentage points** over the tabular baseline. The nine-feature graph baseline explains most of that gain. At their validation thresholds, recall on the synthetic subgroup with ordinary-looking local features rose from **13.18% to 93.12%**. The hybrid model flagged 677 test transactions, including 653 true positives and 24 false positives. These values describe the published simulation run. Small differences in floating-point reductions can change the last reported digit across runs.
 
 ## Methodology
 
